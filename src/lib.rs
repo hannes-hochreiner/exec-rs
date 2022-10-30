@@ -31,10 +31,6 @@ impl Exec for CommandExec {
     }
 }
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
-
 #[cfg(all(test, feature = "mockall"))]
 mod tests {
     use super::*;
