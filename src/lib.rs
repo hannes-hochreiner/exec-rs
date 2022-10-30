@@ -1,9 +1,9 @@
 use std::process::Command;
 
-#[cfg(all(test, feature = "mockall"))]
+#[cfg(feature = "mockall")]
 use mockall::automock;
 
-#[cfg_attr(test, cfg_attr(feature = "mockall", automock))]
+#[cfg_attr(feature = "mockall", automock)]
 pub trait Exec {
     fn exec<'a>(&self, command: &str, args: &'a [&'a str]) -> Result<String, ExecError>;
 }
