@@ -5,7 +5,7 @@ use mockall::automock;
 
 #[cfg_attr(test, cfg_attr(feature = "mockall", automock))]
 pub trait Exec {
-    fn exec<'a>(&mut self, command: &str, args: &'a [&'a str]) -> Result<String, ExecError>;
+    fn exec<'a>(&self, command: &str, args: &'a [&'a str]) -> Result<String, ExecError>;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -21,7 +21,7 @@ pub enum ExecError {
 pub struct CommandExec {}
 
 impl Exec for CommandExec {
-    fn exec(&mut self, command: &str, args: &[&str]) -> Result<String, ExecError> {
+    fn exec(&self, command: &str, args: &[&str]) -> Result<String, ExecError> {
         let output = Command::new(command).args(args).output()?;
 
         match output.status.success() {
