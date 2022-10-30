@@ -1,3 +1,4 @@
+[![CI](https://github.com/hannes-hochreiner/exec-rs/actions/workflows/main.yml/badge.svg)](https://github.com/hannes-hochreiner/exec-rs/actions/workflows/main.yml)
 # Exec-rs
 
 Rust module to execute commands.
