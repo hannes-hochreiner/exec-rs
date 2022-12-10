@@ -14,3 +14,4 @@ mockall = { version = "0.11", optional = true }
 
 [dev-dependencies]
 exec-rs = { path=".", features = ["mockall"] }
+users = "0.11"
