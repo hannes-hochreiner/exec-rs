@@ -12,7 +12,7 @@ pub trait Exec {
         &mut self,
         command: &str,
         args: &[&'a str],
-        context: &Context,
+        context: Option<&'a Context>,
     ) -> Result<String, ExecError>;
 
     /// Runs several commands piping stdout of one command into stdin of the next
@@ -21,7 +21,7 @@ pub trait Exec {
     ///
     fn exec_piped<'a>(
         &mut self,
-        commands: &[(&'a str, &'a [&'a str], &'a Context)],
+        commands: &[(&'a str, &'a [&'a str], Option<&'a Context>)],
     ) -> Result<String, ExecError>;
 }
 
@@ -70,27 +70,33 @@ impl Exec for CommandExec {
         &mut self,
         command: &str,
         args: &[&str],
-        context: &Context,
+        context: Option<&Context>,
     ) -> Result<String, ExecError> {
         self.run_piped(&vec![(command, args, context)])
     }
 
-    fn exec_piped(&mut self, commands: &[(&str, &[&str], &Context)]) -> Result<String, ExecError> {
+    fn exec_piped(
+        &mut self,
+        commands: &[(&str, &[&str], Option<&Context>)],
+    ) -> Result<String, ExecError> {
         self.run_piped(commands)
     }
 }
 
 impl CommandExec {
-    fn run_piped(&mut self, commands: &[(&str, &[&str], &Context)]) -> Result<String, ExecError> {
+    fn run_piped(
+        &mut self,
+        commands: &[(&str, &[&str], Option<&Context>)],
+    ) -> Result<String, ExecError> {
         let mut child: Option<std::process::Child> = None;
 
         for (command, args, context) in commands {
             match child {
                 Some(mut c) => {
-                    child = Some(self.run_single(command, args, context, Some(&mut c))?);
+                    child = Some(self.run_single(command, args, *context, Some(&mut c))?);
                 }
                 None => {
-                    child = Some(self.run_single(command, args, context, None)?);
+                    child = Some(self.run_single(command, args, *context, None)?);
                 }
             }
         }
@@ -105,27 +111,33 @@ impl CommandExec {
         &mut self,
         command: &str,
         args: &[&str],
-        context: &Context,
+        context: Option<&Context>,
         pre: Option<&mut std::process::Child>,
     ) -> Result<std::process::Child, ExecError> {
         let mut com = match context {
-            Context::Local { user } => {
+            Some(Context::Local { user }) => {
                 let mut com = std::process::Command::new("sudo");
-                com.arg("-nu").arg(user).arg("--");
+
+                com.arg("-nu").arg(user).arg("--").arg(command);
                 com
             }
-            Context::Remote {
+            Some(Context::Remote {
                 host,
                 user,
                 identity,
-            } => {
+            }) => {
                 let mut com = std::process::Command::new("ssh");
+
                 com.arg("-i")
                     .arg(identity)
-                    .arg(format!("{}@{}", user, host));
+                    .arg(format!("{}@{}", user, host))
+                    .arg(command);
                 com
             }
+            None => std::process::Command::new(command),
         };
+
+        com.args(args);
 
         match pre {
             Some(child) => {
@@ -136,8 +148,6 @@ impl CommandExec {
         }
 
         com.stdout(std::process::Stdio::piped())
-            .arg(command)
-            .args(args)
             .spawn()
             .map_err(|e| ExecError::Io(e))
     }
@@ -175,9 +185,9 @@ mod tests {
             .exec(
                 "",
                 &[""],
-                &Context::Local {
+                Some(&Context::Local {
                     user: String::from(users::get_current_username().unwrap().to_str().unwrap()),
-                },
+                }),
             )
             .unwrap();
 
@@ -192,9 +202,9 @@ mod tests {
             com.exec(
                 "ls",
                 &["Cargo.toml"],
-                &Context::Local {
+                Some(&Context::Local {
                     user: String::from(users::get_current_username().unwrap().to_str().unwrap()),
-                }
+                })
             )
             .unwrap(),
             "Cargo.toml\n"
@@ -210,8 +220,25 @@ mod tests {
 
         assert_eq!(
             com.run_piped(&[
-                ("cat", &["Cargo.toml"], &context),
-                ("grep", &["name"], &context),
+                ("cat", &["Cargo.toml"], Some(&context)),
+                ("grep", &["name"], Some(&context)),
+            ])
+            .unwrap(),
+            "name = \"exec-rs\"\n"
+        );
+    }
+
+    #[test]
+    fn run_piped_mixed_context() {
+        let mut com = CommandExec {};
+        let context = Context::Local {
+            user: String::from(users::get_current_username().unwrap().to_str().unwrap()),
+        };
+
+        assert_eq!(
+            com.run_piped(&[
+                ("cat", &["Cargo.toml"], Some(&context)),
+                ("grep", &["name"], None),
             ])
             .unwrap(),
             "name = \"exec-rs\"\n"
