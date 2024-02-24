@@ -34,15 +34,9 @@ pub enum Context {
     Local { user: String },
     /// Remote context
     ///
-    /// * `host` - name of the remote host
-    /// * `user` - name of the user on the remote host
-    /// * `identity` - path and filename of the ssh identity file
+    /// * `config` - path and filename of the ssh config file
     ///
-    Remote {
-        host: String,
-        user: String,
-        identity: String,
-    },
+    Remote { config: Option<String> },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -121,17 +115,14 @@ impl CommandExec {
                 com.arg("-nu").arg(user).arg("--").arg(command);
                 com
             }
-            Some(Context::Remote {
-                host,
-                user,
-                identity,
-            }) => {
+            Some(Context::Remote { config }) => {
                 let mut com = std::process::Command::new("ssh");
 
-                com.arg("-i")
-                    .arg(identity)
-                    .arg(format!("{}@{}", user, host))
-                    .arg(command);
+                if let Some(config) = config {
+                    com.arg("-F").arg(config);
+                }
+
+                com.arg(command);
                 com
             }
             None => std::process::Command::new(command),
